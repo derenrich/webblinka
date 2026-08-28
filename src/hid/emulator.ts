@@ -6,6 +6,7 @@ import { VirtualRv1805 } from "./devices/rv1805.ts";
 import { VirtualSht4x } from "./devices/sht4x.ts";
 import { VirtualAs5600 } from "./devices/as5600.ts";
 import { VirtualTsl2591 } from "./devices/tsl2591.ts";
+import { VirtualSsd1306 } from "./devices/ssd1306.ts";
 import { VirtualBmi160 } from "./devices/bmi160.ts";
 import { Mcp2221Emulator } from "./mcp2221-emulator.ts";
 import { MCP2221_PRODUCT_ID, MCP2221_VENDOR_ID } from "./webhid.ts";
@@ -118,6 +119,7 @@ export function defaultRig(): Mcp2221Emulator {
   // opens on the panel doing the thing it is for -- ranging down out of an
   // overflow -- rather than on a comfortable mid-scale reading.
   chip.attach(new VirtualTsl2591({ lux: 3200, infraredFraction: 0.42 }));
+  chip.attach(new VirtualSsd1306());
   // Tilted, turning slowly, and with the zero-rate offset a real one has --
   // so the panel opens on a gyro that reads non-zero while the board is still,
   // which is the thing it exists to point out.

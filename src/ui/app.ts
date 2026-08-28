@@ -238,7 +238,8 @@ export function mount(root: HTMLElement): void {
     ui.setDemoMode(true);
     log.write(
       "Starting in demo mode: emulated MCP2221 with a simulated PA1010D, " +
-        "AHT10, SHT45, AS7341, AS5600, TSL2591, BMI160, EEPROM and RV-1805 on its " +
+        "AHT10, SHT45, AS7341, AS5600, TSL2591, BMI160, SSD1306, EEPROM and " +
+        "RV-1805 on its " +
         "bus. " +
         "All readings from here are software-generated, not measurements.",
     );

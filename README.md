@@ -133,6 +133,19 @@ shape of an adapter UI right.
     when they do, the dial greys rather than staying authoritative. Turn
     counting is the driver's job, since the chip wraps at 360 and has no idea
     how many times it has been round.
+  - **SSD1306 OLED** — the generic 128×64 (or 128×32) module, with test
+    patterns. Patterns rather than a status readout because the I²C interface
+    is *write-only*: there is no way to ask the panel what it is showing, what
+    size it thinks it is, or whether it is doing anything at all beyond the
+    address ACK. A module with its charge pump disabled accepts every byte
+    exactly like a working one. So each pattern is chosen so its appearance
+    names a fault — nothing at all is the charge pump, a border missing its
+    bottom edge is a 32-row panel driven as 64, and a ruler whose ends wrap is
+    an SH1106 wearing the SSD1306's name, with 132 columns of RAM starting two
+    in. The preview is labelled as what was *sent*, every time, because a dark
+    screen beside a perfect preview is the normal failure and a picture on a
+    page is very easy to mistake for a screenshot. The panel does not poll: a
+    frame is a kilobyte and there is nothing to read back.
   - **TSL2591 light sensor** — six decades of illuminance, which the part only
     actually has if the gain and integration time suit the light. Choosing them
     is the work of using this sensor, so the driver auto-ranges: from an

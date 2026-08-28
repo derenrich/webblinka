@@ -3,6 +3,7 @@ import { As5600Panel } from "../ui/panels/as5600.ts";
 import { HygrometerPanel } from "../ui/panels/hygrometer.ts";
 import { As7341Panel } from "../ui/panels/as7341.ts";
 import { Tsl2591Panel } from "../ui/panels/tsl2591.ts";
+import { DisplayPanel } from "../ui/panels/display.ts";
 import { ImuPanel } from "../ui/panels/imu.ts";
 import { EepromPanel } from "../ui/panels/eeprom.ts";
 import { RtcPanel } from "../ui/panels/rtc.ts";
@@ -109,6 +110,15 @@ export const DEVICES: DeviceEntry[] = [
     addresses: [0x68, 0x69],
     library: "circuitpython_bmi160",
     create: (session) => new ImuPanel(session),
+  },
+  {
+    id: "ssd1306",
+    name: "SSD1306 OLED",
+    description: "128×64 or 128×32 monochrome display, with test patterns",
+    // SA0 picks between the two; most modules are strapped to 0x3c.
+    addresses: [0x3c, 0x3d],
+    library: "adafruit_circuitpython_ssd1306",
+    create: (session) => new DisplayPanel(session),
   },
   {
     id: "rv1805",

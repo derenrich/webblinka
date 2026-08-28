@@ -20,6 +20,7 @@ import { VirtualSht4x } from "../../../src/hid/devices/sht4x.ts";
 import { VirtualHdc302x } from "../../../src/hid/devices/hdc302x.ts";
 import { VirtualAs5600 } from "../../../src/hid/devices/as5600.ts";
 import { VirtualTsl2591 } from "../../../src/hid/devices/tsl2591.ts";
+import { VirtualSsd1306 } from "../../../src/hid/devices/ssd1306.ts";
 import { VirtualBmi160 } from "../../../src/hid/devices/bmi160.ts";
 import { PY_ROOT, bootstrapSource } from "../../../src/worker/bootstrap.ts";
 import { Serializer } from "../../../src/worker/serialize.ts";
@@ -118,6 +119,14 @@ export function chipWithImu(options = {}) {
   const imu = new VirtualBmi160(options);
   chip.attach(imu);
   return { chip, imu };
+}
+
+/** A chip with one SSD1306 on it. */
+export function chipWithScreen(options = {}) {
+  const chip = new Mcp2221Emulator();
+  const screen = new VirtualSsd1306(options);
+  chip.attach(screen);
+  return { chip, screen };
 }
 
 /** A chip with one RV-1805 on it. */

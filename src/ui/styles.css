@@ -7,6 +7,8 @@
   --text: #1b1a17;
   --muted: #6d6a63;
   --line: #e3e0d9;
+  --screen-off: #0d1011;
+  --screen-on: #9fe3f5;
   --line-strong: #cbc7bd;
   --accent: #2f6f5e;
   --accent-soft: #e6efeb;
@@ -1295,4 +1297,53 @@ input.grow {
 
 .level-bubble {
   fill: var(--accent);
+}
+
+/* ------------------------------------------------------------------ screen */
+
+/* The display's own layout rather than .gps-columns, because the preview has a
+   size it must be given rather than a size it can adapt to: a 128-pixel panel
+   at 3x is 384 physical pixels, and anything that scales it to 222 turns every
+   pixel into a soft rectangle straddling two of the screen's. The picture
+   column is sized to its content and the controls take what is left. */
+.screen-columns {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .screen-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.screen-frame {
+  display: inline-block;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  background: var(--screen-off);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.screen {
+  display: block;
+  image-rendering: pixelated;
+  max-width: 100%;
+}
+
+.screen-patterns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+/* Holds the preview to its natural width so the caption under it wraps to the
+   picture rather than stretching across the panel. */
+.screen-side {
+  max-width: 26rem;
 }
