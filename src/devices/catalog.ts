@@ -3,6 +3,7 @@ import { As5600Panel } from "../ui/panels/as5600.ts";
 import { HygrometerPanel } from "../ui/panels/hygrometer.ts";
 import { As7341Panel } from "../ui/panels/as7341.ts";
 import { Tsl2591Panel } from "../ui/panels/tsl2591.ts";
+import { ImuPanel } from "../ui/panels/imu.ts";
 import { EepromPanel } from "../ui/panels/eeprom.ts";
 import { RtcPanel } from "../ui/panels/rtc.ts";
 import { GpsPanel } from "../ui/panels/gps.ts";
@@ -98,6 +99,16 @@ export const DEVICES: DeviceEntry[] = [
     addresses: [0x29],
     library: "adafruit_circuitpython_tsl2591",
     create: (session) => new Tsl2591Panel(session),
+  },
+  {
+    id: "bmi160",
+    name: "BMI160 IMU",
+    description: "Bosch six-axis accelerometer and gyroscope, with tilt derived",
+    // SDO picks between the two. 0x69 is shared with the RV-1805 and 0x68 with
+    // a DS3231 or an MPU-6050, so the driver checks the chip ID at open.
+    addresses: [0x68, 0x69],
+    library: "circuitpython_bmi160",
+    create: (session) => new ImuPanel(session),
   },
   {
     id: "rv1805",

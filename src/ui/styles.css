@@ -1189,3 +1189,110 @@ input.grow {
   margin-left: auto;
   min-width: 6.5rem;
 }
+
+/* ---------------------------------------------------------------- imu */
+
+.imu-group {
+  margin-bottom: 0.9rem;
+}
+
+.imu-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.imu-group-range {
+  font-family: var(--mono);
+}
+
+.imu-axis {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) 5rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.imu-axis-name,
+.imu-axis-value {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.imu-axis-value {
+  text-align: right;
+}
+
+/* A bar pinned at full scale is reporting a limit rather than a measurement,
+   the same as a saturated ADC anywhere else. */
+.imu-axis.saturated .imu-bar-fill,
+.imu-axis.saturated .imu-axis-value {
+  color: var(--error);
+  background: var(--error);
+}
+
+.imu-axis.saturated .imu-axis-value {
+  background: none;
+}
+
+.imu-bar {
+  position: relative;
+  height: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.2rem;
+  overflow: hidden;
+}
+
+/* The centre line, because a signed bar without a marked zero is unreadable --
+   you cannot tell a small positive value from a small negative one. */
+.imu-bar-zero {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--line-strong);
+}
+
+.imu-bar-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.6;
+}
+
+.level {
+  max-width: 12rem;
+}
+
+.level-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Greyed while the sensor is accelerating: the bubble is then showing the
+   direction of the total force, which is not which way is down. */
+.level-svg.unusable {
+  opacity: 0.4;
+}
+
+.level-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.level-cross {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.level-bubble {
+  fill: var(--accent);
+}

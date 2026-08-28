@@ -55,6 +55,7 @@ REQUIREMENTS = [
     "adafruit-circuitpython-hdc302x==1.0.10",  # HDC3020/3021/3022
     "adafruit-circuitpython-as5600==1.0.3",  # magnetic rotary encoder
     "adafruit-circuitpython-tsl2591==1.4.8",  # high-dynamic-range light sensor
+    "circuitpython-bmi160==0.2.9",  # Bosch six-axis IMU
     "adafruit-circuitpython-register==1.10.4",  # dep of as7341
 ]
 

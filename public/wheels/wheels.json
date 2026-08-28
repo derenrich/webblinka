@@ -20,6 +20,7 @@
     "adafruit-circuitpython-hdc302x==1.0.10",
     "adafruit-circuitpython-as5600==1.0.3",
     "adafruit-circuitpython-tsl2591==1.4.8",
+    "circuitpython-bmi160==0.2.9",
     "adafruit-circuitpython-register==1.10.4"
   ],
   "files": [
@@ -39,6 +40,7 @@
     "adafruit_circuitpython_typing-1.12.3-py3-none-any.whl",
     "adafruit_platformdetect-3.89.1-py3-none-any.whl",
     "binho_host_adapter-0.1.6-py3-none-any.whl",
+    "circuitpython_bmi160-0.2.9-py3-none-any.whl",
     "pyftdi-0.57.2-py3-none-any.whl",
     "pyserial-3.5-py2.py3-none-any.whl",
     "pyusb-1.3.1-py3-none-any.whl"

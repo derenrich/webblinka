@@ -145,6 +145,24 @@ shape of an adapter UI right.
     subtracts infrared from visible, so two equal clipped counts cancel, and
     any "floor" would be invented. The infrared share comes free from the same
     two registers and says roughly what is lighting the room.
+  - **BMI160 IMU** — six axes on a shared panel that any other inertial part
+    can reuse: a driver declares its groups of three and the panel draws them.
+    Three things it is built around. The axes are read in **one 12-byte burst**,
+    because on this bus a per-axis read puts ten milliseconds between X and Z
+    and a vector assembled from three instants is not a vector — each component
+    still looks fine, only the magnitude gives it away. A **gyroscope at rest
+    does not read zero**, so the offset is measured, subtracted, and quoted as
+    the heading error it would otherwise cause per minute, which is the number
+    that matters and the one °/s hides. And an **accelerometer at rest reads
+    one g**, which makes the magnitude a free running check on the whole chain
+    and the precondition for the tilt angles — they come from the direction of
+    gravity, so the panel greys them the moment the part is accelerating.
+    There is no yaw, because it cannot be recovered this way at all.
+
+    The stock `circuitpython-bmi160` handles identity, reset and power modes.
+    Its own scale and rate tables are not used: the gyroscope sensitivity table
+    is reversed end for end, the accelerometer's output-rate table is off by
+    one, and the gyroscope's raises `IndexError` at the part's reset default.
   - **AS7341 spectral sensor** — the eight visible channels drawn as a
     spectrum, each bar at its own wavelength's colour, plus clear and near-IR.
     Plotted in *basic counts* — raw divided by gain and integration time —
