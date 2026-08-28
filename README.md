@@ -159,6 +159,14 @@ shape of an adapter UI right.
     gravity, so the panel greys them the moment the part is accelerating.
     There is no yaw, because it cannot be recovered this way at all.
 
+    The configuration registers are read once at open and after each write,
+    never in a poll. That is not tuning: reading them back every time — the
+    natural way to write it — costs ten transactions per reading instead of
+    one, which at ~20 ms each is 190 ms against a 200 ms timer. A bus at
+    ninety-five per cent falls behind, and a repeated-start read abandoned
+    between its halves leaves the part holding the line with no STOP ever sent,
+    which wedges every transaction after it. A test pins the count.
+
     The stock `circuitpython-bmi160` handles identity, reset and power modes.
     Its own scale and rate tables are not used: the gyroscope sensitivity table
     is reversed end for end, the accelerometer's output-rate table is off by

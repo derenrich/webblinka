@@ -39,6 +39,7 @@ guarantees the value when the gyroscope is in normal mode, and updates it every
 from __future__ import annotations
 
 import struct
+import time
 from typing import Any
 
 from .base import register
@@ -48,6 +49,12 @@ from .imu import Imu, Motion
 #: or an MPU-6050, so the identity check at start matters.
 DEFAULT_ADDRESS = 0x68
 ADDRESSES = (0x68, 0x69)
+
+#: How often the die temperature is actually fetched. It is a thermal mass in
+#: a plastic package -- it does not move perceptibly between two polls a fifth
+#: of a second apart -- and on this bus it is a whole extra transaction, which
+#: is half the cost of a poll.
+TEMPERATURE_INTERVAL_S = 1.0
 
 #: Gyroscope X low byte. Gyro XYZ then accelerometer XYZ, twelve bytes, in the
 #: order the datasheet lays them out for exactly this read.
@@ -98,6 +105,10 @@ class Bmi160(Imu):
         super().__init__(bus, address)
         self._sensor = None
         self._device = None
+        self._config: dict[str, Any] = {}
+        self._temperature_c: float | None = None
+        self._temperature_at = 0.0
+        self._recoveries = 0
 
     def start(self) -> dict[str, Any]:
         import bmi160
@@ -109,6 +120,7 @@ class Bmi160(Imu):
         # up in normal mode.
         self._sensor = bmi160.BMI160(self.bus, address=self.address)
         self._device = i2c_device.I2CDevice(self.bus, self.address)
+        self._refresh_config()
         return {"address": self.address, "label": self.LABEL, **self.ranges()}
 
     def stop(self) -> None:
@@ -119,20 +131,18 @@ class Bmi160(Imu):
         sensor = self._require()
         if name == "set_accel_range":
             sensor.acceleration_range = int(args[0])
+            self._refresh_config()
             return self.poll()
         if name == "set_gyro_range":
             sensor.gyro_range = int(args[0])
-            # The offset was measured in the old range's counts. It converts
-            # cleanly -- it is stored in degrees per second, not raw -- but the
-            # quantisation changes under it, so say so rather than pretending
-            # the calibration is untouched.
+            self._refresh_config()
             return self.poll()
         return super().command(name, args)
 
     # -- readings ----------------------------------------------------------
 
     def read_motion(self) -> Motion:
-        raw = self._burst(REG_GYRO_X_LSB, MOTION_BYTES)
+        raw = self._burst_or_recover(REG_GYRO_X_LSB, MOTION_BYTES)
         gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z = struct.unpack("<6h", raw)
 
         ranges = self.ranges()
@@ -156,17 +166,37 @@ class Bmi160(Imu):
         )
 
     def ranges(self) -> dict[str, float]:
-        sensor = self._require()
-        # The library's getters return the setting's *name*; the raw bit fields
-        # underneath are what map to a number.
+        """The cached full scales. Free -- no bus traffic."""
         return {
-            "accelG": ACCEL_RANGES.get(sensor._acc_range, 2.0),
-            "gyroDps": GYRO_RANGES.get(sensor._gyro_range, 250.0),
+            "accelG": self._config.get("accelG", 2.0),
+            "gyroDps": self._config.get("gyroDps", 250.0),
         }
 
-    def _temperature(self) -> float:
+    def _refresh_config(self) -> None:
+        """Read the four configuration fields, once, after any change to them.
+
+        The library's range getters return the setting's *name*; the raw bit
+        fields underneath are what map to a number.
+        """
+        sensor = self._require()
+        self._config = {
+            "accelG": ACCEL_RANGES.get(sensor._acc_range, 2.0),
+            "gyroDps": GYRO_RANGES.get(sensor._gyro_range, 250.0),
+            "accelBits": sensor._acc_range,
+            "gyroBits": sensor._gyro_range,
+            "accelOdrHz": odr_hz(sensor._acc_odr),
+            "gyroOdrHz": odr_hz(sensor._gyro_odr),
+        }
+
+    def _temperature(self) -> float | None:
+        """The die temperature, at most once a second."""
+        now = time.monotonic()
+        if self._temperature_c is not None and now - self._temperature_at < TEMPERATURE_INTERVAL_S:
+            return self._temperature_c
         raw = struct.unpack("<h", self._burst(REG_TEMPERATURE, 2))[0]
-        return TEMPERATURE_ZERO_C + raw * TEMPERATURE_STEP_C
+        self._temperature_c = TEMPERATURE_ZERO_C + raw * TEMPERATURE_STEP_C
+        self._temperature_at = now
+        return self._temperature_c
 
     def _burst(self, register_address: int, length: int) -> bytes:
         """One write of the register pointer, one read of `length` bytes."""
@@ -175,16 +205,36 @@ class Bmi160(Imu):
             i2c.write_then_readinto(bytes([register_address]), buffer)
         return bytes(buffer)
 
+    def _burst_or_recover(self, register_address: int, length: int) -> bytes:
+        """A burst, and one attempt to unstick the bus if it fails.
+
+        The failure this exists for is a repeated-start read abandoned between
+        its two halves: the part is left waiting for the read that never came,
+        with no STOP sent, holding the bus. Nothing recovers on its own from
+        there -- every later transaction fails at the address phase, and the
+        panel looks frozen. Cancelling the engine drives the STOP that releases
+        it, so one cancel and one retry turns a dead panel into a dropped
+        frame. If the retry fails too, the bus is genuinely stuck and the error
+        belongs on screen with its trace rather than swallowed here.
+        """
+        try:
+            return self._burst(register_address, length)
+        except Exception:  # noqa: BLE001 - any bus failure gets the same treatment
+            from .. import mcp2221_chip
+
+            mcp2221_chip.force_idle()
+            self._recoveries += 1
+            return self._burst(register_address, length)
+
     # -- panel surface -----------------------------------------------------
 
     def controls(self) -> list[dict[str, Any]]:
-        sensor = self._require()
         return [
             {
                 "kind": "select",
                 "command": "set_accel_range",
                 "label": "Accel range",
-                "value": sensor._acc_range,
+                "value": self._config.get("accelBits", 0),
                 "options": [
                     {"value": bits, "label": f"±{g:g} g"}
                     for bits, g in sorted(ACCEL_RANGES.items(), key=lambda item: item[1])
@@ -199,7 +249,7 @@ class Bmi160(Imu):
                 "kind": "select",
                 "command": "set_gyro_range",
                 "label": "Gyro range",
-                "value": sensor._gyro_range,
+                "value": self._config.get("gyroBits", 0),
                 "options": [
                     {"value": bits, "label": f"±{dps:g} °/s"}
                     for bits, dps in sorted(GYRO_RANGES.items(), key=lambda item: item[1])
@@ -230,7 +280,6 @@ class Bmi160(Imu):
         ]
 
     def details(self) -> list[dict[str, Any]]:
-        sensor = self._require()
         rows = [
             {
                 "label": "Chip ID",
@@ -239,7 +288,8 @@ class Bmi160(Imu):
             },
             {
                 "label": "Output rate",
-                "value": f"{odr_hz(sensor._acc_odr):g} Hz · {odr_hz(sensor._gyro_odr):g} Hz",
+                "value": f"{self._config.get('accelOdrHz', 0):g} Hz · "
+                f"{self._config.get('gyroOdrHz', 0):g} Hz",
                 "title": (
                     "Accelerometer and gyroscope, which are set separately. "
                     "Decoded here rather than read from the library, whose "

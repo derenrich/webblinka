@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { VirtualBmi160 } from "../../src/hid/devices/bmi160.ts";
+import { NackError } from "../../src/hid/i2c-device.ts";
 import { Mcp2221Emulator } from "../../src/hid/mcp2221-emulator.ts";
 import { bootStack, chipWithImu } from "./fixtures/stack.mjs";
 
@@ -207,4 +208,80 @@ test("the IMU is found by a scan and matched to its panel", async () => {
   const { call } = await bootStack({ chip });
   await call("connect");
   assert.deepEqual(await call("i2c_scan"), [0x68]);
+});
+
+test("a poll costs one bus transaction, not ten", async () => {
+  // This is a regression guard with a real failure behind it. The natural way
+  // to write the driver reads the ranges and output rates back on every poll,
+  // which turns a 22-byte reading into ten transactions. At roughly 20 ms each
+  // on this bus that is 190 ms against the panel's 200 ms timer -- the bus sits
+  // at ninety-five per cent, falls behind, and a repeated-start read abandoned
+  // between its halves leaves the part holding the line and the panel frozen.
+  // None of those registers changes unless this driver changes it.
+  const rig = steady();
+  const { call } = await open(rig);
+
+  let transactions = 0;
+  const original = rig.imu.read.bind(rig.imu);
+  rig.imu.read = (length) => {
+    transactions++;
+    return original(length);
+  };
+
+  await call("device_poll", "bmi160@0x68"); // the first also fetches temperature
+  transactions = 0;
+  for (let i = 0; i < 5; i++) await call("device_poll", "bmi160@0x68");
+
+  assert.ok(transactions <= 6, `${transactions} transactions for five polls`);
+});
+
+test("changing a range still takes effect, cached or not", async () => {
+  // The other side of caching: a stale cache would report the old full scale
+  // for ever, and every reading would be scaled by it.
+  const rig = steady({ rateDps: [300, 0, 0] });
+  const { call, poll } = await open(rig);
+
+  await call("device_command", "bmi160@0x68", "set_gyro_range", [0b011]); // ±250
+  const narrow = await poll();
+  assert.equal(narrow.groups[1].range, 250);
+  // 300 °/s does not fit in ±250, so it pins -- which the panel shows rather
+  // than reporting a wrapped value as a real rate.
+  assert.ok(Math.abs(narrow.gyroDps[0]) >= 249, `got ${narrow.gyroDps[0]} °/s`);
+
+  await call("device_command", "bmi160@0x68", "set_gyro_range", [0b000]); // ±2000
+  const wide = await poll();
+  assert.equal(wide.groups[1].range, 2000);
+  assert.ok(Math.abs(wide.gyroDps[0] - 300) < 2, `got ${wide.gyroDps[0]} °/s`);
+});
+
+test("a bus left holding the line is recovered, not surrendered to", async () => {
+  // The wedge this exists for: the part is left waiting mid-transaction with
+  // no STOP sent, so it holds the bus and every later transaction fails at the
+  // address phase. Cancelling the engine drives the STOP that releases it.
+  const rig = steady();
+  const { call } = await open(rig);
+
+  let failures = 1;
+  const original = rig.imu.read.bind(rig.imu);
+  rig.imu.read = (length) => {
+    if (failures-- > 0) throw new NackError("holding the line");
+    return original(length);
+  };
+
+  const state = await call("device_poll", "bmi160@0x68");
+  assert.ok(failures < 0, "the injected failure was actually hit");
+  assert.ok(Math.abs(state.accelMagnitudeG - 1) < 0.01, "and the poll still came back");
+});
+
+test("a bus that stays stuck raises rather than being swallowed", async () => {
+  // The other half. One cancel and one retry turns a wedge into a dropped
+  // frame; retrying for ever would turn a genuinely stuck bus into a panel
+  // that shows plausible stale numbers and never says anything is wrong.
+  const rig = steady();
+  const { call } = await open(rig);
+  rig.imu.read = () => {
+    throw new NackError("holding the line");
+  };
+
+  await assert.rejects(() => call("device_poll", "bmi160@0x68"));
 });

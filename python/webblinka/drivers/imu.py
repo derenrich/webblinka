@@ -38,7 +38,6 @@ direction of gravity and mean nothing while the sensor is accelerating.
 from __future__ import annotations
 
 import math
-import time
 from typing import Any
 
 from .base import Driver
@@ -55,11 +54,11 @@ STILL_ACCEL_TOLERANCE_G = 0.06
 #: couple of degrees a second the board is being turned, not held.
 STILL_GYRO_TOLERANCE_DPS = 2.5
 
-#: Samples averaged when capturing the gyro's zero-rate offset, and the gap
-#: between them. Long enough to average down the noise, short enough that
-#: nobody has to hold the board still for an awkward length of time.
+#: Samples averaged when capturing the gyro's zero-rate offset. There is no
+#: sleep between them: a reading on this bus already costs tens of
+#: milliseconds, so the round trip is the spacing, and adding more only makes
+#: the user hold the board still for longer.
 ZERO_SAMPLES = 24
-ZERO_INTERVAL_S = 0.01
 
 
 class Motion:
@@ -138,7 +137,7 @@ class Imu(Driver):
         temperatures: list[float] = []
         moved = False
 
-        for index in range(ZERO_SAMPLES):
+        for _ in range(ZERO_SAMPLES):
             motion = self.read_motion()
             if not _is_still(motion.accel, motion.gyro, self._gyro_bias):
                 moved = True
@@ -146,8 +145,6 @@ class Imu(Driver):
             samples.append(motion.gyro)
             if motion.temperature_c is not None:
                 temperatures.append(motion.temperature_c)
-            if index < ZERO_SAMPLES - 1:
-                time.sleep(ZERO_INTERVAL_S)
 
         if moved or not samples:
             reading = self.poll()

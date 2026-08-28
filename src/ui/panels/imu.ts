@@ -111,12 +111,20 @@ export class ImuPanel implements DevicePanel {
   }
 
   async #run(command: string, args: unknown[]): Promise<void> {
+    // Raises the poll guard but never defers to it. Zeroing takes a couple of
+    // dozen readings, which on hardware is most of a second, and the poll timer
+    // would otherwise queue work behind it that is stale before it runs. A
+    // command must still always run: dropping one silently discards a click,
+    // and the button under it looks broken.
+    this.#polling = true;
     try {
       const state = await this.#session.command<ImuState>(command, ...args);
       if (state?.zeroResult) this.#flash = state.zeroResult.text;
       this.#render(state);
     } catch (err) {
       this.#status.set(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      this.#polling = false;
     }
   }
 
