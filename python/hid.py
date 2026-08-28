@@ -18,6 +18,8 @@ page only ever holds the one adapter the user picked.
 
 from __future__ import annotations
 
+import time
+
 import js
 from pyodide.ffi import run_sync
 
@@ -30,6 +32,31 @@ __all__ = ["HIDException", "device", "enumerate"]
 # a stall there delays it. Two seconds turned out to be inside the range of an
 # ordinary hiccup, which failed transfers the device had in fact answered.
 DEFAULT_TIMEOUT_MS = 8000
+
+# Blinka's MCP2221 write path contains one loop with no bound on it:
+#
+#     while self._i2c_state() == RESP_I2C_PARTIALDATA:
+#         time.sleep(0.001)
+#
+# Every other loop in that file stops after MCP2221_RETRY_MAX; this one does
+# not. If the I2C engine parks at 0x41 -- which a glitch part-way through a
+# write will do, and a loose jumper being waved about produces reliably -- it
+# never leaves, and Blinka asks it again every millisecond for ever.
+#
+# That is worse here than it would be natively. Each iteration is a HID
+# transfer, HID lives on the page's main thread, and a thousand round trips a
+# second to it starves rendering: the symptom is not a stalled panel but a
+# frozen tab, with no error anywhere because from Blinka's point of view
+# nothing has gone wrong yet.
+#
+# The transport can see what the caller cannot. A caller sending the identical
+# report and receiving the identical reply, hundreds of times, with no pause
+# between, is not waiting for progress -- there is none to wait for. Blinka's
+# own bounded loops give up after fifty, so a limit an order of magnitude above
+# that cannot fire on one of them, and the gap check keeps a panel that polls
+# status once a second from ever accumulating a count at all.
+SPIN_GAP_MS = 50
+SPIN_LIMIT = 400
 
 
 class HIDException(OSError):
@@ -56,6 +83,10 @@ class device:  # noqa: N801 - hidapi spells it lowercase and Blinka calls hid.de
 
     def __init__(self, path: bytes | None = None) -> None:
         self._open = False
+        self._last_exchange: tuple[bytes, bytes] | None = None
+        self._pending_write = b""
+        self._repeats = 0
+        self._last_at = 0.0
         if path is not None:
             self.open_path(path)
 
@@ -74,7 +105,8 @@ class device:  # noqa: N801 - hidapi spells it lowercase and Blinka calls hid.de
     def write(self, data) -> int:
         """Send one output report. Byte 0 is the report ID, as in hidapi."""
         self._require_open()
-        payload = js.Uint8Array.new(list(bytes(data)))
+        self._pending_write = bytes(data)
+        payload = js.Uint8Array.new(list(self._pending_write))
         try:
             return int(run_sync(js.webblinkaHid.write(payload)))
         except Exception as err:  # noqa: BLE001
@@ -88,7 +120,40 @@ class device:  # noqa: N801 - hidapi spells it lowercase and Blinka calls hid.de
             report = run_sync(js.webblinkaHid.read(size, timeout))
         except Exception as err:  # noqa: BLE001
             raise HIDException(str(err)) from err
-        return list(report.to_py())[:size]
+        reply = list(report.to_py())[:size]
+        self._check_for_spin(bytes(reply))
+        return reply
+
+    def _check_for_spin(self, reply: bytes) -> None:
+        """Break a caller that is asking the same question without progress.
+
+        Identical report out, identical report back, no pause in between: the
+        state being waited on is not going to change, and the loop doing the
+        waiting has no bound. Raising here is the only place that can end it --
+        the loop is inside a library this project deliberately does not fork,
+        and Python is suspended inside JSPI where nothing outside can interrupt
+        it.
+        """
+        now = time.monotonic() * 1000
+        exchange = (self._pending_write, reply)
+
+        if exchange == self._last_exchange and now - self._last_at < SPIN_GAP_MS:
+            self._repeats += 1
+        else:
+            self._last_exchange = exchange
+            self._repeats = 1
+        self._last_at = now
+
+        if self._repeats < SPIN_LIMIT:
+            return
+
+        self._repeats = 0
+        state = reply[8] if len(reply) > 8 else 0
+        raise HIDException(
+            f"I2C engine stuck in state 0x{state:02x}: {SPIN_LIMIT} identical "
+            "status reads with no change. The bus is not going to recover on "
+            "its own -- check the wiring to the device, then reset the chip."
+        )
 
     def close(self) -> None:
         if not self._open:

@@ -130,6 +130,7 @@ export class Mcp2221Emulator {
   onProbe: ((address: number, length: number) => void) | null = null;
   #cancelPending = 0;
   #wedged = false;
+  #stallAfterWrite: number | null = null;
   #justSettled = false;
   #linesLow = false;
   #i2cState = STATE_IDLE;
@@ -492,6 +493,7 @@ export class Mcp2221Emulator {
     }
     // A no-stop write leaves the bus held so a repeated-start read can follow.
     this.#i2cState = command === CMD_I2C_WRITE_NOSTOP ? STATE_WRITING_NO_STOP : STATE_IDLE;
+    if (this.#stallAfterWrite !== null) this.#i2cState = this.#stallAfterWrite;
     reply[2] = this.#i2cState;
   }
 
@@ -581,6 +583,17 @@ export class Mcp2221Emulator {
    * Jam the engine in a state a cancel cannot clear, the way a transfer
    * abandoned mid-flight leaves real hardware. Only a reset gets out of it.
    */
+  /**
+   * Accept writes but park the engine in `state` afterwards, the way a bus
+   * glitch part-way through a write does. Distinct from `wedge`, which jams
+   * the engine before it will take anything: here the command is accepted and
+   * the trouble only shows in the status that follows, which is the shape that
+   * catches callers out.
+   */
+  stallWrites(state: number | null): void {
+    this.#stallAfterWrite = state;
+  }
+
   wedge(state = STATE_STOP, linesLow = false): void {
     this.#wedged = true;
     this.#i2cState = state;

@@ -73,6 +73,7 @@ export class ImuPanel implements DevicePanel {
   #polling = false;
   #controlsBuilt = "";
   #flash = "";
+  #misses = 0;
 
   constructor(session: DeviceSession) {
     this.#session = session;
@@ -133,8 +134,21 @@ export class ImuPanel implements DevicePanel {
     this.#polling = true;
     try {
       this.#render(await this.#session.poll<ImuState>());
+      this.#misses = 0;
     } catch (err) {
-      this.#status.set(err instanceof Error ? err.message : String(err), "error");
+      // A dropped frame is not a dead panel. On a bus shared with a moving
+      // board an occasional transfer will fail, and blanking everything for one
+      // of them loses the reading that was on screen a fifth of a second ago
+      // and was fine. The last good values stay, the pill says what happened,
+      // and a count that keeps climbing is the signal that this is not
+      // occasional at all.
+      this.#misses++;
+      const text = err instanceof Error ? err.message : String(err);
+      this.#status.set(
+        this.#misses > 3 ? `bus failing · ${this.#misses}` : "dropped a reading",
+        "error",
+      );
+      if (this.#misses > 3) this.#note.textContent = text;
     } finally {
       this.#polling = false;
     }

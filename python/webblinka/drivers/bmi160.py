@@ -297,6 +297,19 @@ class Bmi160(Imu):
                 ),
             },
         ]
+        if self._recoveries:
+            rows.append(
+                {
+                    "label": "Bus glitches",
+                    "value": f"{self._recoveries} recovered",
+                    "title": (
+                        "Transfers that failed and succeeded on a retry. A count "
+                        "that climbs while the board is moved, and not while it "
+                        "sits still, is a connection problem rather than a "
+                        "software one — check the cable and the header pins."
+                    ),
+                }
+            )
         if self._zeroed_at_c is not None:
             rows.append(
                 {
