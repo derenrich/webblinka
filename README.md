@@ -146,6 +146,28 @@ shape of an adapter UI right.
     screen beside a perfect preview is the normal failure and a picture on a
     page is very easy to mistake for a screenshot. The panel does not poll: a
     frame is a kilobyte and there is nothing to read back.
+  - **BMP390 / BMP388** — barometric pressure, and a panel that leads with
+    height above a datum rather than with altitude. Altitude is not measured:
+    it is inferred from pressure through a model atmosphere that has to be told
+    today's sea-level pressure, and that reference is weather. It moves some
+    thirty hectopascals between a deep low and a strong high, which at ~8.3 m
+    per hPa is about 250 m of apparent altitude from nothing but the forecast.
+    What the part is extraordinary at is the *difference*: Bosch quote ±0.03 hPa
+    relative — they give it as ±25 cm — against ±0.50 hPa absolute, some four
+    metres before the reference error is counted. Two readings minutes apart
+    share their offset, so it cancels. The part cannot tell you where you are,
+    and can tell you that you climbed 40 cm.
+
+    The measurement is taken in the driver rather than through the library's
+    properties. Each of `pressure`, `temperature` and `altitude` triggers its
+    own forced conversion, so the obvious reading costs three of them and hands
+    back a pressure compensated with a temperature the caller never saw. The
+    library's wait for conversion is also unbounded, and the transport's spin
+    detector does not cover it — that fires on one HID report repeating, and
+    each turn of this loop is a whole write-then-read. A test established that
+    by hanging. So the wait has a deadline sized from the datasheet's own
+    maximum conversion time, and the compensation is copied in with a test
+    asserting it agrees with the library's on the same raw counts.
   - **TSL2591 light sensor** — six decades of illuminance, which the part only
     actually has if the gain and integration time suit the light. Choosing them
     is the work of using this sensor, so the driver auto-ranges: from an

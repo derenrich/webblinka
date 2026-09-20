@@ -20,6 +20,7 @@ import { VirtualSht4x } from "../../../src/hid/devices/sht4x.ts";
 import { VirtualHdc302x } from "../../../src/hid/devices/hdc302x.ts";
 import { VirtualAs5600 } from "../../../src/hid/devices/as5600.ts";
 import { VirtualTsl2591 } from "../../../src/hid/devices/tsl2591.ts";
+import { VirtualBmp390 } from "../../../src/hid/devices/bmp390.ts";
 import { VirtualSsd1306 } from "../../../src/hid/devices/ssd1306.ts";
 import { VirtualBmi160 } from "../../../src/hid/devices/bmi160.ts";
 import { PY_ROOT, bootstrapSource } from "../../../src/worker/bootstrap.ts";
@@ -127,6 +128,14 @@ export function chipWithScreen(options = {}) {
   const screen = new VirtualSsd1306(options);
   chip.attach(screen);
   return { chip, screen };
+}
+
+/** A chip with one BMP390 on it. */
+export function chipWithBarometer(options = {}) {
+  const chip = new Mcp2221Emulator();
+  const sensor = new VirtualBmp390(options);
+  chip.attach(sensor);
+  return { chip, sensor };
 }
 
 /** A chip with one RV-1805 on it. */

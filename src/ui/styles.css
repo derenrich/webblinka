@@ -1187,9 +1187,54 @@ input.grow {
   font-size: 0.85rem;
 }
 
+.lux-controls label {
+  /* Without this a flex item refuses to shrink below its content, so one long
+     option in a select pushes the whole row out past the panel. */
+  min-width: 0;
+}
+
 .lux-controls select {
   margin-left: auto;
-  min-width: 6.5rem;
+  min-width: 0;
+  max-width: 62%;
+}
+
+/* ---------------------------------------------------------- barometer */
+
+.baro-headline-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: -0.4rem 0 0.8rem;
+}
+
+.baro-trend {
+  max-width: 100%;
+}
+
+.baro-trend-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 0.2rem;
+}
+
+/* A path with no stroke rule is filled, and SVG's default fill is black --
+   which drew the area under the trace as a solid black blob rather than a
+   line, and an invisible one against a dark background. */
+.baro-trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.baro-trend-scale {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0.35rem 0 0;
 }
 
 /* ---------------------------------------------------------------- imu */

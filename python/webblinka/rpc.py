@@ -61,6 +61,7 @@ def _load_handlers() -> None:
     from .drivers import aht10  # noqa: F401
     from .drivers import as5600  # noqa: F401
     from .drivers import as7341  # noqa: F401
+    from .drivers import bmp3xx  # noqa: F401
     from .drivers import bmi160  # noqa: F401
     from .drivers import eeprom  # noqa: F401
     from .drivers import gps_pa1010d  # noqa: F401

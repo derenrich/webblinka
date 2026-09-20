@@ -6,6 +6,7 @@ import { VirtualRv1805 } from "./devices/rv1805.ts";
 import { VirtualSht4x } from "./devices/sht4x.ts";
 import { VirtualAs5600 } from "./devices/as5600.ts";
 import { VirtualTsl2591 } from "./devices/tsl2591.ts";
+import { VirtualBmp390 } from "./devices/bmp390.ts";
 import { VirtualSsd1306 } from "./devices/ssd1306.ts";
 import { VirtualBmi160 } from "./devices/bmi160.ts";
 import { Mcp2221Emulator } from "./mcp2221-emulator.ts";
@@ -119,6 +120,15 @@ export function defaultRig(): Mcp2221Emulator {
   // opens on the panel doing the thing it is for -- ranging down out of an
   // overflow -- rather than on a comfortable mid-scale reading.
   chip.attach(new VirtualTsl2591({ lux: 3200, infraredFraction: 0.42 }));
+  // A little under standard, the way a real bench usually is, so the altitude
+  // readout is not suspiciously round.
+  // Wandering by a few pascals, which is a few tens of centimetres of apparent
+  // height. Without it the trend plot is a flat line and the panel's whole
+  // point -- that this part measures change far better than absolute -- is
+  // invisible in a demo.
+  chip.attach(
+    new VirtualBmp390({ pressureHpa: 1008.4, temperatureC: 22.6, wanderHpa: 0.08 }),
+  );
   chip.attach(new VirtualSsd1306());
   // Tilted, turning slowly, and with the zero-rate offset a real one has --
   // so the panel opens on a gyro that reads non-zero while the board is still,

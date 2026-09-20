@@ -3,6 +3,7 @@ import { As5600Panel } from "../ui/panels/as5600.ts";
 import { HygrometerPanel } from "../ui/panels/hygrometer.ts";
 import { As7341Panel } from "../ui/panels/as7341.ts";
 import { Tsl2591Panel } from "../ui/panels/tsl2591.ts";
+import { BarometerPanel } from "../ui/panels/barometer.ts";
 import { DisplayPanel } from "../ui/panels/display.ts";
 import { ImuPanel } from "../ui/panels/imu.ts";
 import { EepromPanel } from "../ui/panels/eeprom.ts";
@@ -119,6 +120,17 @@ export const DEVICES: DeviceEntry[] = [
     addresses: [0x3c, 0x3d],
     library: "adafruit_circuitpython_ssd1306",
     create: (session) => new DisplayPanel(session),
+  },
+  {
+    id: "bmp3xx",
+    name: "BMP390 / BMP388",
+    description: "Bosch barometric pressure, to a quarter of a metre relative",
+    // SDO strapped low or high. 0x76 and 0x77 are shared with most of the
+    // other Bosch environmental parts, so the driver checks the chip id.
+    addresses: [0x76, 0x77],
+    defaultAddress: 0x77,
+    library: "adafruit_circuitpython_bmp3xx",
+    create: (session) => new BarometerPanel(session),
   },
   {
     id: "rv1805",
