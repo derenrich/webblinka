@@ -76,8 +76,7 @@ export class BarometerPanel implements DevicePanel {
             text:
               "Pressure moves slowly with weather, so almost anything visible " +
               "here is the sensor changing height — a lift, a stairwell, or " +
-              "being picked up off the desk. The span is written underneath, " +
-              "because the scale is fitted to whatever the range happens to be.",
+              "being picked up off the desk."
           }),
           this.#controls,
         ]),

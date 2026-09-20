@@ -178,6 +178,36 @@ test("a part that never finishes converting fails instead of hanging", async () 
   assert.ok(Date.now() - began < 5000, `gave up after ${Date.now() - began} ms`);
 });
 
+test("the panel states the noise for the settings actually in force", async () => {
+  // The two knobs are not independent, and neither means much alone: x32 with
+  // the filter off is noisier than x1 with it at x128, at fourteen times the
+  // conversion time. So the panel reports the pair's real figure from the
+  // datasheet rather than leaving "oversampling" as an abstraction.
+  const rig = chipWithBarometer();
+  const { call, poll } = await open(rig);
+
+  const noiseOf = (state) => state.details.find((d) => d.label === "Noise").value;
+
+  // The default: x8 with the filter at x4 is 0.6 Pa, which is about 5 cm.
+  assert.match(noiseOf(await poll()), /^0\.6 Pa · 5\.0 cm$/);
+
+  // Turning the filter off costs nearly a factor of three.
+  await call("device_command", HANDLE, "set_filter", [0]);
+  assert.match(noiseOf(await poll()), /^1\.6 Pa/);
+
+  // And the cheap win: the lowest oversampling there is, heavily filtered,
+  // beats the highest oversampling unfiltered.
+  await call("device_command", HANDLE, "set_pressure_oversampling", [1]);
+  await call("device_command", HANDLE, "set_filter", [128]);
+  const cheap = parseFloat(noiseOf(await poll()));
+
+  await call("device_command", HANDLE, "set_pressure_oversampling", [32]);
+  await call("device_command", HANDLE, "set_filter", [0]);
+  const expensive = parseFloat(noiseOf(await poll()));
+
+  assert.ok(cheap < expensive, `${cheap} Pa filtered vs ${expensive} Pa oversampled`);
+});
+
 test("the sensor is found by a scan and matched to its panel", async () => {
   const rig = chipWithBarometer();
   const { call } = await bootStack({ chip: rig.chip });

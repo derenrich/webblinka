@@ -60,6 +60,30 @@ OVERSAMPLING: dict[int, tuple[float, float]] = {
 #: IIR filter coefficients the part offers. Higher is smoother and slower.
 FILTERS = (0, 2, 4, 8, 16, 32, 64, 128)
 
+#: Typical RMS noise in pascals, by oversampling and filter coefficient.
+#: Datasheet table 8, transcribed whole, because the two knobs are not
+#: independent and neither one means much without the other.
+#:
+#: The table is the argument against the obvious intuition. Going from x1 to
+#: x32 costs fourteen times the conversion time and takes noise from 3.7 Pa to
+#: 0.9 -- about the sqrt(N) averaging predicts. Turning the filter on instead
+#: takes x1 from 3.7 Pa to 0.1, better than x32 unfiltered and far cheaper,
+#: because it averages across readings already being taken rather than making
+#: each one longer. What the filter costs is not time but lag: it smooths a
+#: real climb exactly as well as it smooths noise.
+NOISE_PA: dict[int, dict[int, float]] = {
+    1: {0: 3.7, 2: 2.0, 4: 1.2, 8: 0.8, 16: 0.4, 32: 0.2, 64: 0.1, 128: 0.1},
+    2: {0: 2.7, 2: 1.5, 4: 0.9, 8: 0.5, 16: 0.3, 32: 0.2, 64: 0.1, 128: 0.1},
+    4: {0: 2.0, 2: 1.1, 4: 0.7, 8: 0.4, 16: 0.3, 32: 0.2, 64: 0.1, 128: 0.04},
+    8: {0: 1.6, 2: 0.9, 4: 0.6, 8: 0.3, 16: 0.2, 32: 0.1, 64: 0.1, 128: 0.03},
+    16: {0: 1.2, 2: 0.6, 4: 0.4, 8: 0.2, 16: 0.1, 32: 0.1, 64: 0.04, 128: 0.03},
+    32: {0: 0.9, 2: 0.5, 4: 0.3, 8: 0.2, 16: 0.1, 32: 0.1, 64: 0.1, 128: 0.1},
+}
+
+#: Cells the datasheet gives as "<0.1" rather than a figure, so the panel can
+#: show them as the upper bound they are instead of inventing precision.
+NOISE_IS_BOUND = {(32, 64), (32, 128)}
+
 CHIP_IDS = {0x50: "BMP388", 0x60: "BMP390"}
 
 REG_STATUS = 0x03
@@ -211,10 +235,13 @@ class Bmp3xx(Barometer):
                     for times, (pa, ms) in OVERSAMPLING.items()
                 ],
                 "title": (
-                    "Each step halves the noise and roughly doubles the "
-                    "conversion time — ×1 takes 4.8 ms, ×32 takes 69. Past ×8 "
-                    "the resolution is already finer than the part's own "
-                    "accuracy, so the extra time buys nothing."
+                    "Averaging inside one measurement: the ADC converts this "
+                    "many times and returns the mean. Noise falls with roughly "
+                    "the square root of the count — ×1 to ×32 is 3.7 Pa down "
+                    "to 0.9 — and the time rises with the count itself, 4.8 ms "
+                    "to 69. The IIR filter below buys the same quiet far more "
+                    "cheaply; this knob is what you raise when you cannot "
+                    "afford the lag it costs."
                 ),
             },
             {
@@ -227,9 +254,12 @@ class Bmp3xx(Barometer):
                     for coefficient in FILTERS
                 ],
                 "title": (
-                    "Smooths short-term noise — gusts, doors, the sensor being "
-                    "breathed on — at the cost of lag. It is a filter on the "
-                    "part, so it also smooths a real climb."
+                    "Averaging across measurements, on the part. Much better "
+                    "value than oversampling — ×1 with the filter at ×128 is "
+                    "quieter than ×32 with it off, at a fourteenth of the "
+                    "conversion time — because it reuses readings already "
+                    "being taken. What it costs is lag: it smooths a real "
+                    "climb exactly as well as it smooths noise."
                 ),
             },
         ]
@@ -252,6 +282,17 @@ class Bmp3xx(Barometer):
                 ),
             },
             {
+                "label": "Noise",
+                "value": self._noise_text(),
+                "title": (
+                    "Typical RMS noise for this oversampling and filter pair, "
+                    "from datasheet table 8, and what it is worth in height at "
+                    "roughly 8.3 cm per pascal. This is the spread you will "
+                    "actually see standing still — the resolution above is the "
+                    "step size, which is finer and not the limit."
+                ),
+            },
+            {
                 "label": "Relative accuracy",
                 "value": f"±{self.RELATIVE_ACCURACY_HPA:g} hPa · "
                 f"±{self.RELATIVE_ACCURACY_HPA * METRES_PER_HPA * 100:.0f} cm",
@@ -270,6 +311,18 @@ class Bmp3xx(Barometer):
                 ),
             },
         ]
+
+    def _noise_text(self) -> str:
+        oversampling = self._config.get("oversampling", 8)
+        coefficient = self._config.get("filter", 0)
+        noise = NOISE_PA.get(oversampling, {}).get(coefficient)
+        if noise is None:
+            return "—"
+        bound = "<" if (oversampling, coefficient) in NOISE_IS_BOUND else ""
+        # Metres per hectopascal and centimetres per pascal are the same
+        # number: both sides of the ratio divide by a hundred.
+        centimetres = noise * METRES_PER_HPA
+        return f"{bound}{noise:g} Pa · {bound}{centimetres:.1f} cm"
 
     def _require(self):
         if self._sensor is None:
